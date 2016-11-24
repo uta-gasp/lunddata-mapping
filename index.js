@@ -13,11 +13,18 @@ const OUTPUT_FOLDER = 'mapped/';
 
 staticFit.settings({
 	logging: false,
-	fitThreshold: 16,
+	fitThreshold: 15,
 	marginX: 150,
 	marginY: 150,
-	skimmigThresholdX: 300,
+	skimmigThresholdX: 400,
 	skimmigThresholdY: 35,
+	emptyLineDetectionFactor: 1.6,
+	correctForEmptyLines: true,
+	maxLinearGradient: 0.12,
+	//minDurationMerging: 0,
+	//minDurationRemoving: 0,
+	//dropShortSets: false,
+	minInterfixDist: 40 // let's join some close fixations
 });
 
 main( DATA_FOLDER );
@@ -51,6 +58,7 @@ function main( dataFolder ) {
 	let pages = readStimuli( dataFolder + 'stimuli/AOIlistAll.txt' );
 	pages.forEach( page => {
 		page.detectMissingLines();
+		page.correctRows();
 	});
 
 	let participants = readParticipants( dataFolder + 'AOIfixs/' );
@@ -66,18 +74,21 @@ function main( dataFolder ) {
 		let averageMatchRate = new MatchRate();
 
 		pages.forEach( (page, index) => {
+			// if (pi === 0 && index == 15) {
+			// 	debugger;
+			// }
 			staticFit.map( page );
 			saveFixations( page.fixations, dataFolder + OUTPUT_FOLDER, participant, index + 1 );
-			
+
 			let matchRate = getMatchRate( page.fixations );
 			averageMatchRate.add( matchRate );
-			
+
 			output.push( page.filename + '\t' + matchRate.toString() );
 			console.log( `${page.id}`, '\t\t', matchRate.toString() );
 		});
 
 		grandAverageMatchRate.add( averageMatchRate );
-		
+
 		console.log( participant, '\t', averageMatchRate.toString() );
 	});
 
@@ -131,6 +142,7 @@ function readStimuli( filename ) {
 			+values[7],	// row
 			values[8]	// text
 		);
+
 		words.push( word );
 	});
 
@@ -241,7 +253,7 @@ function saveFixations( fixations, folder, filename, pageID ) {
 		records.push( [
 			fixation.ts,
 			fixation.duration,
-			fixation.x,
+			fixation._x || fixation.x ,
 			fixation.y,
 			fixation.wordID,
 			fixation.col < 0 ? 'NaN' : fixation.col,
@@ -258,7 +270,7 @@ function saveFixations( fixations, folder, filename, pageID ) {
 	//if ( !(fs.accessSync( folder ) | fs.constants.F_OK) ) {
 		fs.mkdirSync( folder );
 	}
-	
+
 	filename = filename + '_' + page + '_mapped.png.txt';
 	fs.writeFile( folder + filename, records.join( '\r\n' ), (err, fd) => {
 		if (err) {
@@ -291,5 +303,5 @@ function saveMapping( data, filename ) {
 		if (err) {
 			console.error( 'Cannot create the file', filename, ':', err.code );
 		}
-	});	
+	});
 }

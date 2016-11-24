@@ -2,10 +2,13 @@ class Page {
 	constructor( words ) {
 		this.words = words;
 		this.missingLines = [];
+		this.maxLineID = 0;
 
 		this.fixations = [];
 		this.id = 0;
 		this.filename = '';
+
+		this.applyCorrection = false;
 	}
 
 	detectMissingLines() {
@@ -16,9 +19,31 @@ class Page {
 			}
 			currentLineIndex = word.row;
 		});
+		this.maxLineID = currentLineIndex - 1;
+	}
+
+	correctRows() {
+		if (!this.applyCorrection) {
+			return;
+		}
+
+		let currentWordRow = 0;
+		let currentLine = 0;
+
+		this.words.forEach( word => {
+			if (word.row != currentWordRow) {
+				currentWordRow = word.row;
+				currentLine += 1;
+			}
+			word.row = currentLine;
+		});
 	}
 
 	correctMappedLines() {
+		if (!this.applyCorrection) {
+			return;
+		}
+
 		if (this.missingLines.length === 0) {
 			return;
 		}
