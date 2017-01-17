@@ -1,32 +1,80 @@
 'use strict';
 
-const fs = require('fs');
+require('mock-local-storage');
 
-const staticFit = require('../../_Web/GaSP/Reading/src/js/staticFit.js').StaticFit;
+const fs = require('fs');
 
 const MatchRate = require('./matchRate.js');
 const Page = require('./page.js');
 
+const isSGWM = process.argv[2] === 'sgwm';
+let mapper;
+
+if (isSGWM) {
+    var SGWM = require('../../_Web/GaSP/sgwm.js/build/sgwm.module.js');
+    mapper = new SGWM();
+}
+else {
+    mapper = require('../../_Web/GaSP/Reading/src/js/staticFit.js').StaticFit;
+}
+
 // Parameters
-const DATA_FOLDER = './data/';
+const DATA_FOLDER = './data/second/';
 const OUTPUT_FOLDER = 'mapped/';
 
-staticFit.settings({
-	logging: false,
-	fitThreshold: 15,
-	marginX: 150,
-	marginY: 150,
-	skimmigThresholdX: 400,
-	skimmigThresholdY: 35,
-	emptyLineDetectionFactor: 1.6,
-	correctForEmptyLines: true,
-	maxLinearGradient: 0.12,
-	//minDurationMerging: 0,
-	//minDurationRemoving: 0,
-	//dropShortSets: false,
-	minInterfixDist: 40 // let's join some close fixations
-});
+if (mapper.settings) {
+    mapper.settings({
+        logging: false,
+        fitThreshold: 15,
+        marginX: 150,
+        marginY: 150,
+        skimmigThresholdX: 400,
+        skimmigThresholdY: 35,
+        emptyLineDetectionFactor: 1.6,
+        correctForEmptyLines: true,
+        maxLinearGradient: 0.15,
+        minDurationMerging: 0,
+        minDurationRemoving: 0,
+        //dropShortSets: false,
+        minInterfixDist: 0 // let's join some close fixations
+    });
+}
+else if (isSGWM) {
+    let settings = new SGWM.FixationProcessorSettings();
+    settings.location.enabled = false;
+    settings.duration.enabled = false;
+    settings.save();
 
+    settings = new SGWM.SplitToProgressionsSettings();
+    settings.bounds = {	// in size of char height
+        left: -0.5,
+        right: 8,
+        verticalChar: 2,
+        verticalLine: 0.6
+    };
+    settings.angle = Math.sin( 15 * Math.PI / 180 );
+    settings.save();
+
+    settings = new SGWM.ProgressionMergerSettings();
+    settings.minLongSetLength = 3;
+    settings.fitThreshold = 0.28;		// fraction of the interline distance
+    settings.maxLinearGradient = 0.15;
+    settings.removeSingleFixationLines = false;
+    settings.correctForEmptyLines = true;
+    settings.emptyLineDetectorFactor = 1.6;
+    settings.save();
+
+    settings = new SGWM.WordMapperSettings();
+    settings.wordCharSkipStart = 3;
+    settings.wordCharSkipEnd = 6;
+    settings.scalingDiffLimit = 0.9;
+    settings.rescaleFixationX = true;
+    settings.partialLengthMaxWordLength = 2;
+    settings.effectiveLengthFactor = 0.7;
+    settings.save();
+}
+
+debugger;
 main( DATA_FOLDER );
 
 // Implementation
@@ -74,13 +122,23 @@ function main( dataFolder ) {
 		let averageMatchRate = new MatchRate();
 
 		pages.forEach( (page, index) => {
-			// if (pi === 0 && index == 15) {
-			// 	debugger;
-			// }
-			staticFit.map( page );
-			saveFixations( page.fixations, dataFolder + OUTPUT_FOLDER, participant, index + 1 );
+			//if (pi !== 0 || index != 4) {
+            //    return;
+			//}
 
-			let matchRate = getMatchRate( page.fixations );
+            let fixations;
+            if (isSGWM) {
+                const result = mapper.map( page );
+                fixations = result.fixations;
+            }
+            else {
+                mapper.map( page );
+                fixations = page.fixations;
+            }
+            
+			saveFixations( fixations, dataFolder + OUTPUT_FOLDER, participant, index + 1 );
+
+			let matchRate = getMatchRate( fixations );
 			averageMatchRate.add( matchRate );
 
 			output.push( page.filename + '\t' + matchRate.toString() );

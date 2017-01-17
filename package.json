@@ -1,10 +1,12 @@
 {
-    "name": "lunddata",
-    "version": "1.0.0",
-    "description": "Parses reading data from Lund",
-    "main": "index.js",
-    "scripts": {
-    },
-    "author": "Oleg Špakov @ University of Tampere",
-    "license": "MIT"
+  "name": "lunddata",
+  "version": "1.0.0",
+  "description": "Parses reading data from Lund",
+  "main": "index.js",
+  "scripts": {},
+  "author": "Oleg Špakov @ University of Tampere",
+  "license": "MIT",
+  "dependencies": {
+    "mock-local-storage": "^1.0.2"
+  }
 }
