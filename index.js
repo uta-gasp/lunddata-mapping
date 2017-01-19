@@ -7,7 +7,7 @@ const fs = require('fs');
 const MatchRate = require('./matchRate.js');
 const Page = require('./page.js');
 
-const isSGWM = process.argv[2] === 'sgwm';
+const isSGWM = process.argv[2] !== 'old';
 let mapper;
 
 if (isSGWM) {
@@ -71,6 +71,7 @@ else if (isSGWM) {
     settings.rescaleFixationX = true;
     settings.partialLengthMaxWordLength = 2;
     settings.effectiveLengthFactor = 0.7;
+    settings.ignoreTransitions = false;
     settings.save();
 }
 
@@ -135,7 +136,7 @@ function main( dataFolder ) {
                 mapper.map( page );
                 fixations = page.fixations;
             }
-            
+
 			saveFixations( fixations, dataFolder + OUTPUT_FOLDER, participant, index + 1 );
 
 			let matchRate = getMatchRate( fixations );
