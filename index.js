@@ -19,7 +19,7 @@ else {
 }
 
 // Parameters
-const DATA_FOLDER = './data/second/';
+const DATA_FOLDER = './data/third/';
 const OUTPUT_FOLDER = 'mapped/';
 
 if (mapper.settings) {
@@ -68,14 +68,13 @@ else if (isSGWM) {
     settings.wordCharSkipStart = 3;
     settings.wordCharSkipEnd = 6;
     settings.scalingDiffLimit = 0.9;
-    settings.rescaleFixationX = true;
+    settings.rescaleFixationX = false;
     settings.partialLengthMaxWordLength = 2;
     settings.effectiveLengthFactor = 0.7;
     settings.ignoreTransitions = false;
     settings.save();
 }
 
-debugger;
 main( DATA_FOLDER );
 
 // Implementation
