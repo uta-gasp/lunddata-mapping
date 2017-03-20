@@ -61,7 +61,9 @@ else if (isSGWM) {
     settings.maxLinearGradient = 0.15;
     settings.removeSingleFixationLines = false;
     settings.correctForEmptyLines = true;
+    settings.currentLineSupportInCorrection = 0.0;
     settings.emptyLineDetectorFactor = 1.6;
+    settings.intelligentFirstLineMapping = true;
     settings.save();
 
     settings = new SGWM.WordMapperSettings();
