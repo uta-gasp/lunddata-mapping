@@ -1,13 +1,43 @@
 'use strict';
 
+/// Args /////////////////////////
+const argsStructure = {
+    'mode': {
+        required: false,
+        description: 'mapping algorithm',
+        values: {
+            '[no value]': 'SGWM',
+            'old': 'staticFit from Reading project',
+        },
+    },
+    'source': {
+        required: true,
+        description: 'subfolder in "./data", which contains "AOIfixs" and "stimuli" subfolders',
+        values: {
+            '[folder]': 'a folder name',
+        },
+    },
+    'distorted': {
+        required: false,
+        description: 'a flag indicating than columns 5 and 6 contain distorted coordinates',
+    },
+}
+
+//////////////////////////////////
+
 require('mock-local-storage');
 
 const fs = require('fs');
+const path = require('path');
 
-const MatchRate = require('./matchRate.js');
-const Page = require('./page.js');
+const MatchRate = require('./js/matchRate.js');
+const Page = require('./js/page.js');
+const args = require('./js/argParser.js');
+if (!args.hasRequired( argsStructure ) ) {
+    return args.printInfo( argsStructure );
+}
 
-const isSGWM = process.argv[2] !== 'old';
+const isSGWM = args.named.mode !== 'old';
 let mapper;
 
 if (isSGWM) {
@@ -19,7 +49,7 @@ else {
 }
 
 // Parameters
-const DATA_FOLDER = './data/third/';
+const DATA_FOLDER = './data/' + (args.named.source ? `${args.named.source}/` : '');
 const OUTPUT_FOLDER = 'mapped/';
 
 if (mapper.settings) {
@@ -77,7 +107,8 @@ else if (isSGWM) {
     settings.save();
 }
 
-main( DATA_FOLDER );
+main();
+
 
 // Implementation
 function Word (x1, y1, x2, y2, col, row, text) {
@@ -101,27 +132,60 @@ function Fixation (ts, duration, x, y, wordID, col, row, text) {
 	this.text = text;
 }
 
-function main( dataFolder ) {
-	let output = [ dataFolder, 'file\twords\tlines' ];
+function main() {
+    const success = parseFolder( DATA_FOLDER );
+    if (!success) {
+        const folders = getSubfolders( DATA_FOLDER + 'AOIfixs/' )
+        const outputs = folders.map( (folder, i) => {
+            // if (i < 2)
+            return parseFolder( DATA_FOLDER, folder + '/' );
+        });
 
-	console.log( `======= ${dataFolder} =======` );
-	let pages = readStimuli( dataFolder + 'stimuli/AOIlistAll.txt' );
+        const dataFiles = fs.readdirSync( DATA_FOLDER + 'AOIfixs/' + folders[0] + '/' );
+        const result = dataFiles.map( (filename, index) => {
+            // return filename + '\t' + outputs.map( (output, i) => i < 2 ? output[ index ].toString() : '\t' ).join( '\t' );
+            return filename + '\t' + outputs.map( output => output[ index ].toString() ).join( '\t' );
+        });
+
+        result.unshift( 'Filename\t' + folders.map( _ => 'word\tline' ).join( '\t' ) );
+        result.unshift( '\t' + folders.join( '\t\t' ) );
+
+        saveMapping( result, DATA_FOLDER + OUTPUT_FOLDER + 'mapping.txt' );
+    }
+}
+
+function parseFolder( dataFolder, subfolder ) {
+	const output = [ dataFolder + (subfolder ? subfolder : ''), 'file\twords\tlines' ];
+    const outputFolder = [ dataFolder + OUTPUT_FOLDER ];
+    if (subfolder) {
+        outputFolder.push( subfolder );
+    }
+
+    console.log( `======= ${dataFolder}${subfolder ? subfolder : ''} =======` );
+
+    const AOIfixsFolder = dataFolder + 'AOIfixs/' + (subfolder ? subfolder : '');
+    const participants = readParticipants( AOIfixsFolder );
+    if (!(participants instanceof Array)) {
+        console.log( '  no files, now parsing subfolder...' );
+        return null;
+    }
+
+	const pages = readStimuli( dataFolder + 'stimuli/AOIlistAll.txt' );
 	pages.forEach( page => {
 		page.detectMissingLines();
 		page.correctRows();
 	});
 
-	let participants = readParticipants( dataFolder + 'AOIfixs/' );
+	const grandAverageMatchRate = new MatchRate();
 
-	let grandAverageMatchRate = new MatchRate();
-
+    const result = [];
 	participants.forEach( (participant, pi) => {
 		console.log( `======= ${participant} =======` );
 		console.log( `file\t\twords\tlines` );
 
-		readParticipantData( pages, dataFolder + 'AOIfixs/', participant);
+		readParticipantData( pages, AOIfixsFolder, participant);
 
-		let averageMatchRate = new MatchRate();
+		const averageMatchRate = new MatchRate();
 
 		pages.forEach( (page, index) => {
 			//if (pi !== 0 || index != 4) {
@@ -138,13 +202,15 @@ function main( dataFolder ) {
                 fixations = page.fixations;
             }
 
-			saveFixations( fixations, dataFolder + OUTPUT_FOLDER, participant, index + 1 );
+			saveFixations( fixations, outputFolder, participant, index + 1 );
 
-			let matchRate = getMatchRate( fixations );
+			const matchRate = getMatchRate( fixations );
 			averageMatchRate.add( matchRate );
 
 			output.push( page.filename + '\t' + matchRate.toString() );
 			console.log( `${page.id}`, '\t\t', matchRate.toString() );
+
+            result.push( matchRate );
 		});
 
 		grandAverageMatchRate.add( averageMatchRate );
@@ -155,7 +221,9 @@ function main( dataFolder ) {
 	output.push( '\nGRAND AVG\t' + grandAverageMatchRate.toString() );
 	console.log( '\nGRAND AVG:\t', grandAverageMatchRate.toString() );
 
-	saveMapping( output, dataFolder + OUTPUT_FOLDER + 'mapping.txt' );
+	saveMapping( output, outputFolder.join( '' ) + 'mapping.txt' );
+
+    return result;
 }
 
 function readStimuli( filename ) {
@@ -212,11 +280,14 @@ function readStimuli( filename ) {
 }
 
 function readParticipants( dataFolder ) {
-	let dataFiles = fs.readdirSync( dataFolder ).filter( filename => {
-		return filename.endsWith( '.txt' );
-	});
+	let dataFiles = fs.readdirSync( dataFolder );
+    if (dataFiles.some( filename => !filename.endsWith( '.txt' ) )) {
+        return null;
+    }
 
-	let result = [];
+    dataFiles = dataFiles.filter( filename => filename.endsWith( '.txt' ) );
+
+	const result = [];
 	let currentParticipant = '';
 
 	dataFiles.forEach( filename => {
@@ -278,25 +349,26 @@ function readFixations( filename ) {
 	let data = buffer.toString();
 	let rows = data.split( '\r\n' );
 
+    const shiftAfter2 = args.named.distorted ? 2 : 0;
 	rows.forEach( (row, index) => {
 		if (index === 0) {
 			return;
 		}
 
-		let values = row.split( '\t' );
+		const values = row.split( '\t' );
 		if (values.length < 8) {
 			return;
 		}
 
-		let fixation = new Fixation(
+		const fixation = new Fixation(
 			+values[0],		// ts
 			+values[1], 	// duraiton
-			+values[2], 	// x
-			+values[3], 	// y
-			+values[4], 	// wordID
-			values[5] === 'NaN' ? -1 : +values[5],	// col
-			values[6] === 'NaN' ? -1 : +values[6], 	// row
-			values[7]	// text
+			+values[2 + shiftAfter2], 	// x
+			+values[3 + shiftAfter2], 	// y
+			+values[4 + shiftAfter2], 	// wordID
+			values[5 + shiftAfter2] === 'NaN' ? -1 : +values[5 + shiftAfter2],	// col
+			values[6 + shiftAfter2] === 'NaN' ? -1 : +values[6 + shiftAfter2], 	// row
+			values[7 + shiftAfter2]	// text
 		);
 		fixations.push( fixation );
 	});
@@ -306,7 +378,7 @@ function readFixations( filename ) {
 	return fixations;
 }
 
-function saveFixations( fixations, folder, filename, pageID ) {
+function saveFixations( fixations, path, filename, pageID ) {
 	let records = ['startT	duration	X (pix)	Y (pix)	AOIid	wordInRowNo	lineNo	word'];
 
 	fixations.forEach( fixation => {
@@ -326,9 +398,16 @@ function saveFixations( fixations, folder, filename, pageID ) {
 
 	let page = padFront( '' + pageID, 4, '0' );
 
+    const folder = path.join( '' );
 	if ( !fs.existsSync( folder ) ) {
 	//if ( !(fs.accessSync( folder ) | fs.constants.F_OK) ) {
-		fs.mkdirSync( folder );
+        path.reduce( (acc, item) => {
+            const newFolder = acc + item;
+            if (!fs.existsSync( newFolder )) {
+                fs.mkdirSync( newFolder );
+            }
+            return newFolder;
+        }, '' );
 	}
 
 	filename = filename + '_' + page + '_mapped.png.txt';
@@ -364,4 +443,9 @@ function saveMapping( data, filename ) {
 			console.error( 'Cannot create the file', filename, ':', err.code );
 		}
 	});
+}
+
+function getSubfolders( folder ) {
+    const isDirectory = source => fs.lstatSync( source ).isDirectory()
+    return fs.readdirSync( folder ).filter( name => isDirectory( path.join( folder, name ) ) );
 }
