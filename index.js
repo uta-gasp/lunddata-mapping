@@ -21,6 +21,24 @@ const argsStructure = {
         required: false,
         description: 'a flag indicating than columns 5 and 6 contain distorted coordinates',
     },
+    'skip': {
+        required: false,
+        description: 'skips one or more subfolders from the beginning',
+        values: {
+            '<n>': 'number of folders to skip',
+        },
+    },
+    'max': {
+        required: false,
+        description: 'max number of subfolders to parse',
+        values: {
+            '<n>': 'number of folders to parse',
+        },
+    },
+    'verbose': {
+        required: false,
+        description: 'if set, generates a verbose output',
+    },
 }
 
 //////////////////////////////////
@@ -39,9 +57,10 @@ if (!args.hasRequired( argsStructure ) ) {
 
 const isSGWM = args.named.mode !== 'old';
 let mapper;
+let SGWM;
 
 if (isSGWM) {
-    var SGWM = require('../../_Web/GaSP/sgwm.js/build/sgwm.module.js');
+    SGWM = require('../../_Web/GaSP/sgwm.js/build/sgwm.module.js');
     mapper = new SGWM();
 }
 else {
@@ -133,18 +152,31 @@ function Fixation (ts, duration, x, y, wordID, col, row, text) {
 }
 
 function main() {
-    const success = parseFolder( DATA_FOLDER );
+    const pages = parseStimuli( DATA_FOLDER );
+    if (!pages) {
+        return console.error( 'aborted' );
+    }
+
+    const success = parseFolder( pages, DATA_FOLDER );
     if (!success) {
+        console.log( '  parsing subfolders...' );
         const folders = getSubfolders( DATA_FOLDER + 'AOIfixs/' )
+        let count = 0;
         const outputs = folders.map( (folder, i) => {
-            // if (i < 2)
-            return parseFolder( DATA_FOLDER, folder + '/' );
+            if ((!args.named.max || count < args.named.max) && (!args.named.skip || i >= args.named.skip)) {
+                count++;
+                return parseFolder( pages, DATA_FOLDER, folder + '/' );
+            }
         });
 
         const dataFiles = fs.readdirSync( DATA_FOLDER + 'AOIfixs/' + folders[0] + '/' );
         const result = dataFiles.map( (filename, index) => {
-            // return filename + '\t' + outputs.map( (output, i) => i < 2 ? output[ index ].toString() : '\t' ).join( '\t' );
-            return filename + '\t' + outputs.map( output => output[ index ].toString() ).join( '\t' );
+            return filename + '\t' + outputs.map( (output, i) => {
+                const value = output ? output[ index ] : null;
+                const valid = value && (!args.named.skip || i >= args.named.skip);
+                return valid ? `${value.words}\t${value.lines}` : '\t';
+            }).join( '\t' ) ;
+            // return filename + '\t' + outputs.map( output => output[ index ].toString() ).join( '\t' );
         });
 
         result.unshift( 'Filename\t' + folders.map( _ => 'word\tline' ).join( '\t' ) );
@@ -154,7 +186,21 @@ function main() {
     }
 }
 
-function parseFolder( dataFolder, subfolder ) {
+function parseStimuli( dataFolder ) {
+    const pages = readStimuli( dataFolder + 'stimuli/AOIlistAll.txt' );
+    if (!pages) {
+        return null;
+    }
+
+    pages.forEach( page => {
+        page.detectMissingLines();
+        page.correctRows();
+    });
+
+    return pages;
+}
+
+function parseFolder( pages, dataFolder, subfolder ) {
 	const output = [ dataFolder + (subfolder ? subfolder : ''), 'file\twords\tlines' ];
     const outputFolder = [ dataFolder + OUTPUT_FOLDER ];
     if (subfolder) {
@@ -165,23 +211,21 @@ function parseFolder( dataFolder, subfolder ) {
 
     const AOIfixsFolder = dataFolder + 'AOIfixs/' + (subfolder ? subfolder : '');
     const participants = readParticipants( AOIfixsFolder );
-    if (!(participants instanceof Array)) {
-        console.log( '  no files, now parsing subfolder...' );
+    if (!participants) {
+        console.log( '  no files' );
         return null;
     }
-
-	const pages = readStimuli( dataFolder + 'stimuli/AOIlistAll.txt' );
-	pages.forEach( page => {
-		page.detectMissingLines();
-		page.correctRows();
-	});
 
 	const grandAverageMatchRate = new MatchRate();
 
     const result = [];
+    let isValid = true;
+
 	participants.forEach( (participant, pi) => {
-		console.log( `======= ${participant} =======` );
-		console.log( `file\t\twords\tlines` );
+        if (args.named.verbose) {
+    		console.log( `======= ${participant} =======` );
+    		console.log( `file\t\twords\tlines` );
+        }
 
 		readParticipantData( pages, AOIfixsFolder, participant);
 
@@ -191,11 +235,14 @@ function parseFolder( dataFolder, subfolder ) {
 			//if (pi !== 0 || index != 4) {
             //    return;
 			//}
+            if (!isValid || !page.fixations) {
+                isValid = false;
+                return;
+            }
 
             let fixations;
             if (isSGWM) {
-                const result = mapper.map( page );
-                fixations = result.fixations;
+                fixations = mapper.map( page ).fixations;
             }
             else {
                 mapper.map( page );
@@ -208,39 +255,61 @@ function parseFolder( dataFolder, subfolder ) {
 			averageMatchRate.add( matchRate );
 
 			output.push( page.filename + '\t' + matchRate.toString() );
-			console.log( `${page.id}`, '\t\t', matchRate.toString() );
+            if (args.named.verbose) {
+	       		console.log( `${page.id}`, '\t\t', matchRate.toString() );
+            }
 
-            result.push( matchRate );
+            result.push({
+                words: matchRate.words.toFixed(3),
+                lines: matchRate.lines.toFixed(3),
+            });
 		});
 
-		grandAverageMatchRate.add( averageMatchRate );
-
-		console.log( participant, '\t', averageMatchRate.toString() );
+        if (isValid) {
+	        grandAverageMatchRate.add( averageMatchRate );
+            if (args.named.verbose) {
+        		console.log( participant, '\t', averageMatchRate.toString() );
+            }
+        }
+        else {
+            console.log( participant, '\t...skipped' );
+        }
 	});
 
-	output.push( '\nGRAND AVG\t' + grandAverageMatchRate.toString() );
-	console.log( '\nGRAND AVG:\t', grandAverageMatchRate.toString() );
+    if (isValid) {
+    	output.push( '\nGRAND AVG\t' + grandAverageMatchRate.toString() );
+        if (args.named.verbose) {
+        	console.log( '\nGRAND AVG:\t', grandAverageMatchRate.toString() );
+        }
 
-	saveMapping( output, outputFolder.join( '' ) + 'mapping.txt' );
+    	saveMapping( output, outputFolder.join( '' ) + 'mapping.txt' );
+    }
+    else {
+        console.log( '\nSomething went wrong, aborting' );
+    }
 
-    return result;
+    return isValid ? result : null;
 }
 
 function readStimuli( filename ) {
-	let pages = [];
+	const pages = [];
 	let buffer;
 
 	try {
 		buffer = fs.readFileSync( filename, 'utf8' );
-	} finally {
+	}
+    finally {
 		if (!buffer) {
 			return console.error( `Cannot read ${filename}` );
 		}
 	}
 
-	let data = buffer.toString();
-	let rows = data.split( '\r\n' );
-	console.log('stimuli, rows:', rows.length);
+	const data = buffer.toString();
+	const rows = data.split( '\r\n' );
+
+    if (args.named.verbose) {
+    	console.log('stimuli, rows:', rows.length);
+    }
 
 	let words = [];
 	pages.push( new Page( words ) );
@@ -250,18 +319,18 @@ function readStimuli( filename ) {
 			return;
 		}
 
-		let values = row.split( '\t' );
+		const values = row.split( '\t' );
 		if (values.length !== 9) {
 			return;
 		}
 
-		let pageID = +values[0];
+		const pageID = +values[0];
 		if (pageID > pages.length) {
 			words = [];
 			pages.push( new Page( words ) );
 		}
 
-		let word = new Word(
+		const word = new Word(
 			+values[1],	// x1
 			+values[2],	// y1
 			+values[3],	// x2
@@ -274,7 +343,9 @@ function readStimuli( filename ) {
 		words.push( word );
 	});
 
-	console.log('pages, count:', pages.length);
+    if (args.named.verbose) {
+    	console.log('pages, count:', pages.length);
+    }
 
 	return pages;
 }
@@ -291,7 +362,7 @@ function readParticipants( dataFolder ) {
 	let currentParticipant = '';
 
 	dataFiles.forEach( filename => {
-		let participant = getParticipantID( filename );
+		const participant = getParticipantID( filename );
 		if (participant !== currentParticipant) {
 			result.push( participant );
 			currentParticipant = participant;
@@ -316,7 +387,7 @@ function getParticipantID( filename ) {
 }
 
 function readParticipantData( pages, dataFolder, participant ) {
-	let dataFiles = fs.readdirSync( dataFolder ).filter( filename => {
+	const dataFiles = fs.readdirSync( dataFolder ).filter( filename => {
 		return filename.startsWith( participant );
 	});
 
@@ -325,8 +396,8 @@ function readParticipantData( pages, dataFolder, participant ) {
 	});
 
 	dataFiles.forEach( (dataFile, index) => {
-		let pageID = getPageID( dataFile );
-		let page = pages[ pageID - 1 ];
+		const pageID = getPageID( dataFile );
+		const page = pages[ pageID - 1 ];
 		page.fixations = readFixations( dataFolder + dataFile );
 		page.id = pageID;
 		page.filename = dataFile;
@@ -335,19 +406,20 @@ function readParticipantData( pages, dataFolder, participant ) {
 }
 
 function readFixations( filename ) {
-	let fixations = [];
+	const fixations = [];
 	let buffer;
 
 	try {
 		buffer = fs.readFileSync( filename, 'utf8' );
-	} finally {
+	}
+    finally {
 		if (!buffer) {
 			return console.error( `Cannot read ${filename}` );
 		}
 	}
 
-	let data = buffer.toString();
-	let rows = data.split( '\r\n' );
+	const data = buffer.toString();
+	const rows = data.split( '\r\n' );
 
     const shiftAfter2 = args.named.distorted ? 2 : 0;
 	rows.forEach( (row, index) => {
@@ -379,7 +451,7 @@ function readFixations( filename ) {
 }
 
 function saveFixations( fixations, path, filename, pageID ) {
-	let records = ['startT	duration	X (pix)	Y (pix)	AOIid	wordInRowNo	lineNo	word'];
+	const records = ['startT	duration	X (pix)	Y (pix)	AOIid	wordInRowNo	lineNo	word'];
 
 	fixations.forEach( fixation => {
 		records.push( [
@@ -396,7 +468,7 @@ function saveFixations( fixations, path, filename, pageID ) {
 		].join( '\t' ) );
 	});
 
-	let page = padFront( '' + pageID, 4, '0' );
+	const page = padFront( '' + pageID, 4, '0' );
 
     const folder = path.join( '' );
 	if ( !fs.existsSync( folder ) ) {
@@ -411,11 +483,14 @@ function saveFixations( fixations, path, filename, pageID ) {
 	}
 
 	filename = filename + '_' + page + '_mapped.png.txt';
-	fs.writeFile( folder + filename, records.join( '\r\n' ), (err, fd) => {
-		if (err) {
-			console.error( 'Cannote write to the file', filename, ':', err.code );
-		}
-	});
+
+    fs.writeFileSync( folder + filename, records.join( '\r\n' ));
+
+	// fs.writeFile( folder + filename, records.join( '\r\n' ), (err, fd) => {
+	// 	if (err) {
+	// 		console.error( 'Cannote write to the file', filename, ':', err.code );
+	// 	}
+	// });
 }
 
 function padFront( text, requiredLength, padChar ) {
@@ -426,10 +501,10 @@ function padFront( text, requiredLength, padChar ) {
 }
 
 function getMatchRate( fixations ) {
-	let result = new MatchRate();
+	const result = new MatchRate();
 	fixations.forEach( fixation => {
-		let row = fixation.line === undefined ? -1 : fixation.line + 1;
-		let col = !fixation.word ? -1 : fixation.word.index + 1;
+		const row = fixation.line === undefined ? -1 : fixation.line + 1;
+		const col = !fixation.word ? -1 : fixation.word.index + 1;
 		result.add( fixation.col === col, fixation.row === row );
 	});
 
@@ -437,12 +512,13 @@ function getMatchRate( fixations ) {
 }
 
 function saveMapping( data, filename ) {
-	let str = data.join( '\r\n' );
-	fs.writeFile( filename, str, (err, fd) => {
-		if (err) {
-			console.error( 'Cannot create the file', filename, ':', err.code );
-		}
-	});
+	const str = data.join( '\r\n' );
+    fs.writeFileSync( filename, str );
+	// fs.writeFile( filename, str, (err, fd) => {
+	// 	if (err) {
+	// 		console.error( 'Cannot create the file', filename, ':', err.code );
+	// 	}
+	// });
 }
 
 function getSubfolders( folder ) {
