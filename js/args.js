@@ -1,4 +1,5 @@
-module.exports = class ArgParser {
+module.exports = class args {
+
     static get array() {
         return process.argv.slice( 2 );
     }
@@ -18,11 +19,11 @@ module.exports = class ArgParser {
     }
 
     static hasRequired( argDescriptors ) {
-        const args = ArgParser.named;
+        const _args = args.named;
         let result = true;
         for (let name in argDescriptors) {
             const argDescriptor = argDescriptors[ name ];
-            if (argDescriptor.required && args[ name ] === undefined) {
+            if (argDescriptor.required && _args[ name ] === undefined) {
                 result = false;
                 break;
             }
@@ -53,4 +54,5 @@ module.exports = class ArgParser {
         console.log( '$ node index.js source=wrapped distorted' );
         console.log( '    parses distorted data in ./data/wrapped/AOIfixs/**/*.txt' );
     }
+
 }

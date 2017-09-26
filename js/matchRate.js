@@ -1,12 +1,12 @@
-class MatchRate {
-	
+module.exports = class MatchRate {
+
 	constructor() {
 		this._words = 0;
 		this._lines = 0;
 		this._count = 0;
 	}
 
-	add (matchRate, sameLine) {
+	add( matchRate, sameLine ) {
 		if (sameLine === undefined) {
 			this._words += matchRate.words;
 			this._lines += matchRate.lines;
@@ -18,17 +18,16 @@ class MatchRate {
 		this._count++;
 	}
 
-	get words () {
+	get words() {
 		return this._count > 0 ? this._words / this._count : 0;
 	}
 
-	get lines () {
+	get lines() {
 		return this._count > 0 ? this._lines / this._count : 0;
 	}
 
-	toString () {
+	toString() {
 		return `${this.words.toFixed(3)}\t${this.lines.toFixed(3)}`;
 	}
-}
 
-module.exports = MatchRate;
+}

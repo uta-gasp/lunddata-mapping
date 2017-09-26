@@ -1,4 +1,5 @@
-class Page {
+module.exports = class Page {
+
 	constructor( words ) {
 		this.words = words;
 		this.missingLines = [];
@@ -56,6 +57,5 @@ class Page {
 			});
 		});
 	}
-}
 
-module.exports = Page;
+}
