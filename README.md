@@ -5,9 +5,9 @@ Maps gaze data collected and annotated in Lund and displays the mapping accuracy
 ## Dependencies
 
  * [NodeJS](https://nodejs.org/)
- * staticFit.js from [Reading](https://github.com/uta-gasp/reading/blob/master/src/js/staticFit.js) project. Download the file and ensure that 
+ * `staticFit.js` from [Reading](https://github.com/uta-gasp/reading/blob/master/src/js/staticFit.js) project. Download the file and ensure that 
  `mapper = require(.../staticFit.js).StaticFit;` from `index.js` in the current project contains the correct path.
- * sgwm.module.js from [SGWM](https://github.com/uta-gasp/sgwm/blob/master/build/sgwm.module.js) project. Download the file and ensure that 
+ * `sgwm.module.js` from [SGWM](https://github.com/uta-gasp/sgwm/blob/master/build/sgwm.module.js) project. Download the file and ensure that 
  `SGWM = require(.../sgwm.module.js);` from `index.js` in the current project contains the correct path.
 
 ## Install
@@ -49,7 +49,7 @@ Run in console:
 
 Parameters:
 
-run `node index.js` to get a list of available parameters
+_run `node index.js` to get a list of available parameters_
 
 For example, when mapping distorted data stored in `./data/wrapped`:
 
