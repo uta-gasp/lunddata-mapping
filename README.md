@@ -2,20 +2,20 @@
 
 Maps gaze data collected and annotated in Lund and displays the mapping accuracy statistics
 
-## Dependencies
-
- * [NodeJS](https://nodejs.org/)
- * `staticFit.js` from [Reading](https://github.com/uta-gasp/reading/blob/master/src/js/staticFit.js) project. Download the file and ensure that 
- `mapper = require(.../staticFit.js).StaticFit;` from `index.js` in the current project contains the correct path.
- * `sgwm.module.js` from [SGWM](https://github.com/uta-gasp/sgwm/blob/master/build/sgwm.module.js) project. Download the file and ensure that 
- `SGWM = require(.../sgwm.module.js);` from `index.js` in the current project contains the correct path.
-
 ## Install
 
 Clone the package using git:
 
     git clone https://github.com/uta-gasp/lunddata-mapping.git
     cd lunddata-mapping
+
+## Dependencies
+
+ * [NodeJS](https://nodejs.org/)
+ * [`staticFit.js`](https://github.com/uta-gasp/reading/blob/master/src/js/staticFit.js) from Reading project. Download the file and ensure that 
+ `mapper = require(.../staticFit.js).StaticFit;` from `index.js` in the current project contains the correct path.
+ * [`sgwm.module.js`](https://github.com/uta-gasp/sgwm/blob/master/build/sgwm.module.js) from SGWM project. Download the file and ensure that 
+ `SGWM = require(.../sgwm.module.js);` from `index.js` in the current project contains the correct path.
 
 ## Data preparation
 
