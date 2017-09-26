@@ -221,19 +221,34 @@ function getMatchRate( fixations ) {
 function saveSummary( results, folders, filename ) {
     const dataFilenames = fs.readdirSync( DATA_FOLDER + FIX_FOLDER + folders[0] + '/' );
 
-    const result = dataFilenames.map( (dataFilename, index) => {
-        return results.map( (result, i) => {
-                const folder = folders[ i ];
-                const value = result ? result[ index ] : null;
-                if (!value) {
-                    return null;
-                }
-                return `${folder}\t${dataFilename}\t${value.words}\t${value.lines}`;
-            }).filter( _ => _ ).join( '\t' ) ;  // filter nulls out
-    });
+    // list-mode
+    const result = results.map( (result, i) => {
+        if (!result) {
+            return null;
+        }
+        const folder = folders[ i ];
+        return dataFilenames.map( (dataFilename, index) => {
+            const value = result[ index ];
+            return `${folder}\t${dataFilename}\t${value.words}\t${value.lines}`;
+        }).join( '\r\n' );
+    }).filter( _ => _ ) ;  // filter nulls out
 
-    // insert column headers
-    result.unshift( folders.filter( (_, i) => results[i] ).map( _ => 'case\tfilename\tword\tline' ).join( '\t' ) );
+    result.unshift( [ 'case', 'filename', 'word', 'line' ].join( '\t' ) );
+
+    // table-mode
+
+    // const result = dataFilenames.map( (dataFilename, index) => {
+    //     return results.map( (result, i) => {
+    //             const folder = folders[ i ];
+    //             const value = result ? result[ index ] : null;
+    //             if (!value) {
+    //                 return null;
+    //             }
+    //             return `${folder}\t${dataFilename}\t${value.words}\t${value.lines}`;
+    //         }).filter( _ => _ ).join( '\r\n' ) ;  // filter nulls out
+    // });
+
+    // result.unshift( folders.filter( (_, i) => results[i] ).map( _ => 'case\tfilename\tword\tline' ).join( '\t' ) );
 
     saveToFile( result, filename );
 }
